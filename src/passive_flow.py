@@ -46,9 +46,16 @@ def build_passive_atoms(raw_orders: list[dict]) -> pd.DataFrame:
         elif etype == "OrderUpdated":
             new = body.get("newOrder", {})
             old = body.get("oldOrder", {})
+            new_price = _f(new.get("limitPrice"))
+            old_price = _f(old.get("limitPrice"))
+            # Price-changing updates are exclusively represented by REPRICE_OUT/IN.
+            # Including them here would double-count the qty change.
+            if (new_price is not None and old_price is not None
+                    and abs(new_price - old_price) >= 1e-9):
+                continue
             nq, oq = _f(new.get("quantity")) or 0.0, _f(old.get("quantity")) or 0.0
             delta = nq - oq
-            if delta == 0:
+            if abs(delta) < 1e-9:
                 continue
             _emit(rows, ts, new, "add" if delta > 0 else "cancel", abs(delta))
     df = pd.DataFrame(rows)

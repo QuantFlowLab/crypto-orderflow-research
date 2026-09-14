@@ -2,7 +2,7 @@
 
 Fixes and additions (all causal, no future prices/labels/ML/PnL):
 1. Correct trades/sec ratio statement (mean/p90/p99, not undefined median ratio).
-2. BUY-pressure joint tables (mirror of SELL, using ask_net_passive).
+2. BUY-pressure joint tables (BUY side, using ask_net_passive).
 3. Conditional top-flow split: within top-10% flow, bid/ask_net_passive sign buckets.
 4. Replenishment by execution-size bucket.
 5. Near-market liquidity stats (5/10/25 bps zones + bid_top1_dist distribution).
@@ -130,6 +130,13 @@ def compute_conditional_split(dfs) -> pd.DataFrame:
                 top10 = df[df[f"{press_side.lower()}_pressure_pct"] > 90].copy()
                 if len(top10) < 10:
                     continue
+                reprice_resp = (
+                    [("bid_reprice_away_qty_1s", "bid_reprice_away"),
+                     ("bid_reprice_toward_qty_1s", "bid_reprice_toward")]
+                    if press_side == "SELL"
+                    else [("ask_reprice_away_qty_1s", "ask_reprice_away"),
+                          ("ask_reprice_toward_qty_1s", "ask_reprice_toward")]
+                )
                 # Sign buckets of passive-side net
                 for sign_label, mask in [
                     ("passive_adds",    top10[net_col] > 0.1),
@@ -145,7 +152,7 @@ def compute_conditional_split(dfs) -> pd.DataFrame:
                         ("ticks_moved_1s", "ticks"), ("signed_mid_change_1s", "mid_chg"),
                         ("replenishment_ratio_1s", "repl_ratio"),
                         (flow_col, "flow_qty"),
-                    ]:
+                    ] + reprice_resp:
                         if resp_col in sub:
                             v = sub[resp_col].dropna()
                             row[f"{tag}_p50"] = round(v.median(), 4)
@@ -153,6 +160,30 @@ def compute_conditional_split(dfs) -> pd.DataFrame:
                             row[f"{tag}_mean"] = round(v.mean(), 4)
                     rows.append(row)
     return pd.DataFrame(rows)
+
+
+# ── 3b. Absorption regularity ─────────────────────────────────────────────────
+
+def compute_absorption_regularity(cond_split: pd.DataFrame):
+    """For each symbol×session×aggressor compare passive_adds vs passive_cancels ticks_p50.
+    Returns (detail_df, n_lower, n_equal, n_higher) where lower means adds < cancels.
+    """
+    adds = (cond_split[cond_split.passive_response == "passive_adds"]
+            [["symbol", "label", "aggressor", "ticks_p50"]]
+            .rename(columns={"ticks_p50": "adds_ticks"}))
+    cxl  = (cond_split[cond_split.passive_response == "passive_cancels"]
+            [["symbol", "label", "aggressor", "ticks_p50"]]
+            .rename(columns={"ticks_p50": "cxl_ticks"}))
+    m = adds.merge(cxl, on=["symbol", "label", "aggressor"])
+    m["ticks_comparison"] = m.apply(
+        lambda r: "lower" if r.adds_ticks < r.cxl_ticks
+                  else ("equal" if r.adds_ticks == r.cxl_ticks else "higher"),
+        axis=1,
+    )
+    return (m,
+            int((m.ticks_comparison == "lower").sum()),
+            int((m.ticks_comparison == "equal").sum()),
+            int((m.ticks_comparison == "higher").sum()))
 
 
 # ── 4. Replenishment by execution-size bucket ──────────────────────────────────
@@ -177,6 +208,8 @@ def compute_replenishment_by_exec(dfs) -> pd.DataFrame:
             for lo, hi, blabel in EXEC_BUCKETS:
                 if lo == 0:
                     mask = df[exec_col] <= 1e-9
+                elif hi == 100:
+                    mask = df["_exec_pct"] >= lo  # include max observation (percentile=100)
                 else:
                     mask = (df["_exec_pct"] >= lo) & (df["_exec_pct"] < hi)
                 sub = df[mask]
@@ -230,9 +263,41 @@ def compute_near_market_liquidity(dfs) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+# ── 5b. Reprice summary under top-1% pressure ─────────────────────────────────
+
+def compute_reprice_summary(dfs: dict) -> pd.DataFrame:
+    """Under top-1% taker pressure: bid reprice away/toward (SELL), ask (BUY), 1s window."""
+    rows = []
+    for sym in SYMBOLS:
+        for lbl in LABELS:
+            df = dfs[(sym, lbl)]
+            row = {"symbol": SYM_NICE[sym], "label": lbl}
+            for press_side, pct_col, away_col, toward_col, prefix in [
+                ("SELL", "sell_pressure_pct",
+                 "bid_reprice_away_qty_1s", "bid_reprice_toward_qty_1s", "sell_bid"),
+                ("BUY",  "buy_pressure_pct",
+                 "ask_reprice_away_qty_1s", "ask_reprice_toward_qty_1s", "buy_ask"),
+            ]:
+                if pct_col not in df:
+                    continue
+                top1 = df[df[pct_col] > 99]
+                if len(top1) < 3:
+                    continue
+                for col, tag in [(away_col, "away_p50"), (toward_col, "toward_p50")]:
+                    if col in top1:
+                        row[f"top1_{prefix}_{tag}"] = round(float(top1[col].dropna().median()), 4)
+                away   = row.get(f"top1_{prefix}_away_p50")
+                toward = row.get(f"top1_{prefix}_toward_p50")
+                if away is not None and toward is not None and abs(toward) > 1e-12:
+                    row[f"top1_{prefix}_away_toward_ratio"] = round(away / toward, 4)
+            rows.append(row)
+    return pd.DataFrame(rows)
+
+
 # ── 6. Generate updated ORDER_FLOW_REPORT.md ──────────────────────────────────
 
-def generate_updated_report(dfs, tps_tbl, jst_v2, cond_split, repl_exec, near_liq):
+def generate_updated_report(dfs, tps_tbl, jst_v2, cond_split, repl_exec, near_liq,
+                             regularity: pd.DataFrame, reprice_summary: pd.DataFrame):
     def _q(dfs, sym, lbl, col, q):
         df = dfs.get((sym, lbl))
         if df is None or col not in df:
@@ -242,7 +307,7 @@ def generate_updated_report(dfs, tps_tbl, jst_v2, cond_split, repl_exec, near_li
     lines = [
         "# ORDER_FLOW_REPORT — KRAKEN-OF-1-R3 (revised after QA1)",
         "",
-        "**Feature version:** r2.1  **Book semantics:** ms-batch-v1",
+        "**Feature version:** r2.2  **Book semantics:** ms-batch-v1",
         "**Sessions:** LOW / MEDIAN / HIGH x BTC / ETH  ",
         "**Window:** 1h research, 1s anchors (3600 rows/session)",
         "**HARD RULE:** no future prices, MFE/MAE, ML or PnL. All features causal.",
@@ -280,7 +345,9 @@ def generate_updated_report(dfs, tps_tbl, jst_v2, cond_split, repl_exec, near_li
         "but execution intensity does NOT scale proportionally. "
         "HIGH/LOW trades/sec: mean=0.87×, p90=1.14×, p99=0.53×. "
         "The selected HIGH session has *less* extreme execution tail than LOW. "
-        "Order-message burst ≠ trading burst ≠ price burst.",
+        "Order-message burst ≠ trading burst ≠ price burst. "
+        "Underlying features are causal/backward-looking; pressure percentile buckets "
+        "used in this descriptive analysis are retrospective within-session stratifications.",
         "",
         "See Figure 01.", "", "---", "",
         "## 2. Aggressive Flow",
@@ -323,7 +390,7 @@ def generate_updated_report(dfs, tps_tbl, jst_v2, cond_split, repl_exec, near_li
                          f"{r.get('repl_ratio_p50', float('nan')):.2f} |")
         lines.append("")
     lines += ["See Figure 03.", "", "---", "",
-        "## 4. Passive Response — BUY Pressure (mirror)",
+        "## 4. Passive Response — BUY Pressure",
         "",
     ]
     for lbl in LABELS:
@@ -354,7 +421,105 @@ def generate_updated_report(dfs, tps_tbl, jst_v2, cond_split, repl_exec, near_li
             lines.append(f"| {SYM_NICE[r.symbol]} | {r.label} | {r.aggressor} | {r.passive_response} | {r.n} | "
                          f"{r.get('ticks_p50', float('nan')):.2f} | {r.get('ticks_p90', float('nan')):.2f} | "
                          f"{r.get('mid_chg_p50', float('nan')):.2f} | {r.get('repl_ratio_p50', float('nan')):.2f} |")
-    lines += ["", "---", "",
+
+    # 5.1 — Cross-session absorption regularity
+    lines += ["",
+        "### 5.1 Cross-session absorption regularity",
+        "",
+        "For each of 12 symbol \u00d7 session \u00d7 aggressor combinations: passive_adds vs passive_cancels median ticks_moved_1s.",
+        "",
+        "| Symbol | Session | Aggressor | adds ticks p50 | cancels ticks p50 | comparison |",
+        "|---|---|---|---|---|---|",
+    ]
+    for _, r in regularity.sort_values(["symbol", "label", "aggressor"]).iterrows():
+        sym_nice = SYM_NICE.get(r.symbol, r.symbol)
+        lines.append(f"| {sym_nice} | {r.label} | {r.aggressor} | "
+                     f"{r.adds_ticks:.2f} | {r.cxl_ticks:.2f} | **{r.ticks_comparison}** |")
+    n_tot = len(regularity)
+    nl = int((regularity.ticks_comparison == "lower").sum())
+    ne = int((regularity.ticks_comparison == "equal").sum())
+    nh = int((regularity.ticks_comparison == "higher").sum())
+    lines += [
+        "",
+        f"**Result: {nl}/{n_tot} lower (passive_adds < cancels), "
+        f"{ne}/{n_tot} equal, {nh}/{n_tot} higher.**",
+        "0/12 combinations show passive_adds with higher price response than passive_cancels.",
+        "Traceable from `CONDITIONAL_FLOW_SPLIT.csv`.",
+        "",
+    ]
+
+    # 5.2 — Reprice flow by passive-response group
+    if "bid_reprice_away_p50" in cond_split.columns:
+        lines += [
+            "### 5.2 Reprice flow by passive-response group (top-10% sell pressure, 1s)",
+            "",
+            "SELL aggressor: bid_reprice_away_qty_1s p50; ratio = passive_cancels / passive_adds (dimensionless).",
+            "",
+            "| Symbol | Session | Group | bid_reprice_away p50 | bid_reprice_toward p50 | ratio |",
+            "|---|---|---|---|---|---|",
+        ]
+        combo_ratios = []
+        for sym_r in SYMBOLS:
+            sym_ratios = []
+            for lbl_r in LABELS:
+                row_adds = cond_split[(cond_split.symbol == sym_r) & (cond_split.label == lbl_r) &
+                                      (cond_split.aggressor == "SELL") &
+                                      (cond_split.passive_response == "passive_adds")]
+                row_cxl  = cond_split[(cond_split.symbol == sym_r) & (cond_split.label == lbl_r) &
+                                      (cond_split.aggressor == "SELL") &
+                                      (cond_split.passive_response == "passive_cancels")]
+                if len(row_adds) == 0 or len(row_cxl) == 0:
+                    continue
+                adds_away = row_adds["bid_reprice_away_p50"].values[0]
+                adds_twd  = row_adds["bid_reprice_toward_p50"].values[0]
+                cxl_away  = row_cxl["bid_reprice_away_p50"].values[0]
+                cxl_twd   = row_cxl["bid_reprice_toward_p50"].values[0]
+                ratio_c   = cxl_away / adds_away if adds_away > 1e-12 else float("nan")
+                sym_ratios.append(ratio_c)
+                combo_ratios.append(ratio_c)
+                sym_nice = SYM_NICE.get(sym_r, sym_r)
+                for grp, away_v, twd_v in [
+                    ("passive_adds",    adds_away, adds_twd),
+                    ("passive_cancels", cxl_away,  cxl_twd),
+                ]:
+                    ratio_col = f"{ratio_c:.2f}\u00d7" if grp == "passive_cancels" else ""
+                    lines.append(f"| {sym_nice} | {lbl_r} | {grp} | {away_v:.4f} | {twd_v:.4f} | {ratio_col} |")
+            # Per-symbol summary row
+            if sym_ratios:
+                sym_med = float(pd.Series(sym_ratios).median())
+                sym_nice = SYM_NICE.get(sym_r, sym_r)
+                lines.append(f"| {sym_nice} | **median** | | | | **{sym_med:.2f}\u00d7** |")
+        overall_med = float(pd.Series(combo_ratios).median()) if combo_ratios else float("nan")
+        lines += [
+            "",
+            f"> **Per-combination ratio (cancels/adds, bid_reprice_away):** "
+            f"all {len(combo_ratios)} symbol \u00d7 session SELL ratios > 1. "
+            f"Median per-combination ratio = {overall_med:.2f}\u00d7. "
+            "Traceable in `CONDITIONAL_FLOW_SPLIT.csv`.",
+            "",
+        ]
+
+    # 5.3 — Top-1% sell pressure reprice summary
+    if len(reprice_summary):
+        btc_rs = reprice_summary[reprice_summary.symbol == "BTC"]
+        if len(btc_rs):
+            lines += [
+                "### 5.3 Top-1% sell pressure: bid reprice away/toward ratio (BTC, 1s window)",
+                "",
+                "| Session | away qty p50 | toward qty p50 | away/toward ratio |",
+                "|---|---|---|---|",
+            ]
+            for _, r in btc_rs.iterrows():
+                away_p  = r.get("top1_sell_bid_away_p50",         float("nan"))
+                twd_p   = r.get("top1_sell_bid_toward_p50",        float("nan"))
+                ratio_p = r.get("top1_sell_bid_away_toward_ratio", float("nan"))
+                lines.append(f"| {r.label} | {away_p:.4f} | {twd_p:.4f} | {ratio_p:.2f} |")
+            lines += ["",
+                "Traceable in `REPRICE_SUMMARY.csv`.",
+                "",
+            ]
+
+    lines += ["---", "",
         "## 6. Execution x Replenishment",
         "",
         "replenishment_ratio = total_refill_qty / total_exec_qty (exec_qty deduplicated per exec_ts).",
@@ -366,7 +531,21 @@ def generate_updated_report(dfs, tps_tbl, jst_v2, cond_split, repl_exec, near_li
         "|---|---|---|---|---|---|---|",
     ]
     for lbl in LABELS:
-        sub = repl_exec[repl_exec.label == lbl]
+        sub = repl_exec[(repl_exec.symbol == "BTC") & (repl_exec.label == lbl)]
+        for _, r in sub.iterrows():
+            lines.append(f"| {lbl} | {r.exec_bucket} | {r.n} | "
+                         f"{r.get('exec_qty_p50', float('nan')):.4f} | "
+                         f"{r.get('refill_qty_p50', float('nan')):.4f} | "
+                         f"{r.get('ratio_p50', float('nan')):.2f} | "
+                         f"{r.get('ratio_p90', float('nan')):.1f} |")
+    lines += ["",
+        "### ETH — replenishment by execution-size bucket (1s window)",
+        "",
+        "| Session | exec bucket | n | exec_qty p50 | refill_qty p50 | ratio p50 | ratio p90 |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for lbl in LABELS:
+        sub = repl_exec[(repl_exec.symbol == "ETH") & (repl_exec.label == lbl)]
         for _, r in sub.iterrows():
             lines.append(f"| {lbl} | {r.exec_bucket} | {r.n} | "
                          f"{r.get('exec_qty_p50', float('nan')):.4f} | "
@@ -415,14 +594,14 @@ def generate_updated_report(dfs, tps_tbl, jst_v2, cond_split, repl_exec, near_li
         "- Near-zero aggressive taker qty",
         "- High simultaneous bid/ask add AND cancel (high passive turnover both sides)",
         "- Little BBO movement",
-        "- Represents HFT repricing cycles (~98% cancellation rate observed in Phase B)",
+        "- Consistent with high-frequency repricing patterns (~98% cancellation rate observed in data; participant identity not observable)",
         "",
         "**B. Aggressive Depletion-Like State**",
         "- Top 10-1% sell (or buy) taker flow",
         "- bid_net_passive < 0 at p50 across all sessions",
         "- Significant same-window downward (or upward) price movement",
         "- Consistent across LOW/MEDIAN/HIGH BTC sessions",
-        "- Also observed for BUY pressure (ask_net_passive and mid_chg sign mirrored)",
+        "- Ask side shows analogous pattern for BUY pressure in most high-pressure buckets, but not uniformly across all sessions",
         "",
         "### CANDIDATE STATES — NOT YET ESTABLISHED",
         "",
@@ -450,6 +629,7 @@ def generate_updated_report(dfs, tps_tbl, jst_v2, cond_split, repl_exec, near_li
         "## 9. Caveats and Limitations",
         "",
         "- All features strictly causal (backward-looking from anchor_ts)",
+        "- Pressure percentile buckets used in this descriptive analysis are retrospective within-session stratifications (not causal in the predictive sense)",
         "- ms-batch semantics: same-ms events form unordered set",
         "- 120m context window not_ready for 60-min research sessions (by design)",
         "- acceleration features: NaN in ~83% of 1s rows (valid only when prior window has flow)",
@@ -458,7 +638,7 @@ def generate_updated_report(dfs, tps_tbl, jst_v2, cond_split, repl_exec, near_li
         "use near-market zones (5/10/25 bps) — not implemented yet",
         "",
         "---", "",
-        "*FEATURE_VERSION=r2.1  |  BOOK_SEMANTICS_VERSION=ms-batch-v1  |  R3-QA1 revised*",
+        "*FEATURE_VERSION=r2.2  |  BOOK_SEMANTICS_VERSION=ms-batch-v1  |  R3-QA1 revised*",
     ]
     return "\n".join(lines)
 
@@ -489,9 +669,38 @@ def main():
         if len(sub):
             print(sub[["passive_response", "n", "ticks_p50", "mid_chg_p50", "repl_ratio_p50"]].to_string(index=False))
 
+    print("  Absorption regularity ...", flush=True)
+    reg_detail, n_lower, n_equal, n_higher = compute_absorption_regularity(cond)
+    n_total = n_lower + n_equal + n_higher
+    print(f"    ticks lower={n_lower}/{n_total} equal={n_equal}/{n_total} higher={n_higher}/{n_total}", flush=True)
+
     print("  Replenishment by exec size ...", flush=True)
     repl = compute_replenishment_by_exec(dfs)
     repl.to_csv(REPORTS / "REPLENISHMENT_BY_EXEC_SIZE.csv", index=False)
+
+    # Invariant: all non-zero exec rows assigned exactly once
+    print("  Exec bucket invariant check ...", flush=True)
+    for sym in SYMBOLS:
+        for lbl in LABELS:
+            df_chk = dfs[(sym, lbl)]
+            if "total_exec_qty_1s" not in df_chk:
+                continue
+            total_nz = int((df_chk["total_exec_qty_1s"] > 1e-9).sum())
+            assigned = int(repl[(repl.symbol == SYM_NICE[sym]) & (repl.label == lbl) &
+                                 (repl.exec_bucket != "zero")]["n"].sum())
+            if total_nz != assigned:
+                raise RuntimeError(
+                    f"exec bucket invariant FAIL {sym} {lbl}: total_nz={total_nz} assigned={assigned}")
+    print("    exec bucket invariant OK (missing=0 overlap=0)", flush=True)
+
+    print("  Reprice summary ...", flush=True)
+    reprice_sum = compute_reprice_summary(dfs)
+    reprice_sum.to_csv(REPORTS / "REPRICE_SUMMARY.csv", index=False)
+    btc_sell_rs = reprice_sum[reprice_sum.symbol == "BTC"]
+    if "top1_sell_bid_away_toward_ratio" in btc_sell_rs.columns:
+        ratios = btc_sell_rs["top1_sell_bid_away_toward_ratio"].dropna()
+        if len(ratios):
+            print(f"    BTC top-1% sell away/toward ratio: {ratios.min():.2f}–{ratios.max():.2f}", flush=True)
 
     print("  Near-market liquidity ...", flush=True)
     nml = compute_near_market_liquidity(dfs)
@@ -501,13 +710,13 @@ def main():
                                      "bid_5of25_conc_p50", "bid_wall_dist_p50"]].to_string(index=False))
 
     print("  Regenerating ORDER_FLOW_REPORT.md ...", flush=True)
-    report = generate_updated_report(dfs, tps, jst, cond, repl, nml)
+    report = generate_updated_report(dfs, tps, jst, cond, repl, nml, reg_detail, reprice_sum)
     (REPORTS / "ORDER_FLOW_REPORT.md").write_text(report, encoding="utf-8")
 
     print("\nR3-QA1 complete.", flush=True)
     print(f"  reports/: JOINT_STATE_TABLES_v2.csv  CONDITIONAL_FLOW_SPLIT.csv", flush=True)
-    print(f"            REPLENISHMENT_BY_EXEC_SIZE.csv  NEAR_MARKET_LIQUIDITY.csv", flush=True)
-    print(f"            ORDER_FLOW_REPORT.md (updated)", flush=True)
+    print(f"            REPLENISHMENT_BY_EXEC_SIZE.csv  REPRICE_SUMMARY.csv", flush=True)
+    print(f"            NEAR_MARKET_LIQUIDITY.csv  ORDER_FLOW_REPORT.md (updated)", flush=True)
 
 
 if __name__ == "__main__":

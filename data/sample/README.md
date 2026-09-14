@@ -1,15 +1,16 @@
 # data/sample — Synthetic Schema Example
 
 Real session data (3–18 GB raw JSON per session) is not included in this
-repository. Use `src/download_raw.py` to fetch real data from the Kraken
-Futures public API.
+repository. Use `download_raw.py` to fetch real data from the Kraken
+Futures public API. **The files in this directory are synthetic and contain
+no redistributed Kraken raw data.**
 
 This directory contains a minimal synthetic example that exercises the full
 pipeline without real exchange data:
 
 ```
-example_orders.jsonl    — 50 synthetic order events
-example_executions.jsonl — 5 synthetic execution events
+example_orders.jsonl      — 17 synthetic order events (10 placed, 4 repriced, 2 cancelled, 1 update)
+example_executions.jsonl  — 3 synthetic execution events
 ```
 
 These files follow the exact schema of the Kraken Futures API v3 response,
@@ -19,7 +20,7 @@ gigabytes of real data.
 ## Download Real Data
 
 ```bash
-python src/download_raw.py \
+python download_raw.py \
     --symbol PF_XBTUSD \
     --start  2026-09-06T13:00:00Z \
     --end    2026-09-06T15:00:00Z \

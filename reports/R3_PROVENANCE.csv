@@ -1,7 +1,7 @@
-symbol,label,feature_version,book_semantics,parquet_sha256_12,n_rows
-PF_XBTUSD,LOW,r2.1,ms-batch-v1,4b6cce54006b,3600
-PF_XBTUSD,MEDIAN,r2.1,ms-batch-v1,621c5a874b17,3600
-PF_XBTUSD,HIGH,r2.1,ms-batch-v1,4b2c88f573e6,3600
-PF_ETHUSD,LOW,r2.1,ms-batch-v1,dfd435011bda,3600
-PF_ETHUSD,MEDIAN,r2.1,ms-batch-v1,78f94faec395,3600
-PF_ETHUSD,HIGH,r2.1,ms-batch-v1,cf684213287b,3600
+symbol,label,feature_version,book_semantics,n_rows,parquet_sha256_16
+PF_XBTUSD,LOW,r2.2,ms-batch-v1,3600,9c5d03aa2871795b
+PF_XBTUSD,MEDIAN,r2.2,ms-batch-v1,3600,00a8ce8fa5a78138
+PF_XBTUSD,HIGH,r2.2,ms-batch-v1,3600,77be761d8c1c8af2
+PF_ETHUSD,LOW,r2.2,ms-batch-v1,3600,62bd6e1b06a0b696
+PF_ETHUSD,MEDIAN,r2.2,ms-batch-v1,3600,13c2659818fc5cec
+PF_ETHUSD,HIGH,r2.2,ms-batch-v1,3600,838ef7681821f9d1

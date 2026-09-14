@@ -34,7 +34,7 @@ Public Kraken Futures REST API
   Order Flow Feature Dataset        (FEATURE_VERSION=r2.2, 615 causal features)
           |
           v
-  Descriptive Microstructure Analysis   <- current: v0.2-orderflow
+  Descriptive Microstructure Analysis   <- current: v0.2.1-orderflow
           |
           v
   Market Battle Detection           <- next: BATTLE-1
@@ -84,9 +84,10 @@ Before any analysis, the reconstruction was independently validated:
 
 3. **Conditional signal for absorption-like state.**  
    Within top-10% sell flow, anchors where `bid_net_passive > 0` (passive adds dominate)
-   show ~30% lower same-window price response than anchors where `bid_net_passive < 0`.  
-   Cross-session regularity: 9/12 symbol × session × aggressor combinations confirm this.  
+   show lower same-window median `ticks_moved_1s` in 9/12 symbol × session × aggressor
+   combinations; 3/12 are equal; 0/12 are higher.
    This is a **candidate state** — episode-level outcome analysis is needed to establish it.
+   *(Exact count reproducible from `CONDITIONAL_FLOW_SPLIT.csv` via `run_r3_qa1.py`.)*
 
 4. **Replenishment is heavy-tailed and physically real.**  
    Ratio (`refilled_qty / executed_qty` within 1s): p50 ≈ 20, p90 ≈ 1000, max > 300,000.  
@@ -94,10 +95,15 @@ Before any analysis, the reconstruction was independently validated:
    limit additions; consistent with rapid liquidity replenishment.
 
 5. **Passive repricing under attack varies across market regimes.**  
-   ~90% of `OrderUpdated` events reprice rather than change quantity. Under top-1% sell
-   pressure, bid_reprice_away_qty / bid_reprice_toward_qty varies by session (0.86×–2.48× BTC).
-   The `passive_cancels` group (net negative) shows 1.7× more reprice-away than the
-   `passive_adds` group, plus larger price response — consistent with retreat vs protection.
+   Under top-1% sell pressure, bid_reprice_away_qty / bid_reprice_toward_qty varies by session
+   (0.87×–2.48× BTC; traceable in `REPRICE_SUMMARY.csv`).
+   The `passive_cancels` group (net negative) shows higher median reprice-away than the
+   `passive_adds` group in all 6 symbol × session SELL combinations; median per-combination
+   ratio 1.59× (BTC median 1.47×, ETH median 1.97×), plus larger price response —
+   consistent with retreat vs protection.
+   *(Reprice ratio reproducible from `CONDITIONAL_FLOW_SPLIT.csv` via `run_r3_qa1.py`.
+   The fraction of OrderUpdated events that reprice vs change quantity is a raw-event
+   statistic not captured in anchor-level parquets.)*
 
 6. **Near-market liquidity concentration requires local measurement.**  
    The largest bid level is typically 100–330 ticks from mid — global `max_qty_vs_median`  
@@ -124,7 +130,8 @@ python download_raw.py \
 # Run session QA, build feature dataset, generate analysis
 python session_qa.py
 python run_r2.py
-python run_analysis.py
+python run_analysis.py         # R3 initial report + figures
+python run_r3_qa1.py           # QA1 revision → canonical ORDER_FLOW_REPORT.md
 ```
 
 The `data/sample/` directory contains synthetic order and execution events that follow
@@ -153,8 +160,9 @@ the pipeline without downloading gigabytes of real data.
 
 ## License
 
-MIT — see `LICENSE`.
+MIT — see `LICENSE`.  
+Market-data notice: see `DATA_NOTICE.md`.
 
 ## Citation
 
-If you use this code or methodology, please reference the repository URL and version tag `v0.2-orderflow`.
+If you use this code or methodology, please reference the repository URL and version tag `v0.2.1-orderflow`.

@@ -1,6 +1,6 @@
 # ORDER_FLOW_REPORT — KRAKEN-OF-1-R3 (revised after QA1)
 
-**Feature version:** r2.1  **Book semantics:** ms-batch-v1
+**Feature version:** r2.2  **Book semantics:** ms-batch-v1
 **Sessions:** LOW / MEDIAN / HIGH x BTC / ETH  
 **Window:** 1h research, 1s anchors (3600 rows/session)
 **HARD RULE:** no future prices, MFE/MAE, ML or PnL. All features causal.
@@ -29,7 +29,7 @@
 | ETH | MEDIAN | 1.252 | 0.0 | 3.0 | 22.01 | 93 |
 | ETH | HIGH | 1.16 | 0.0 | 2.0 | 22.0 | 143 |
 
-> **Corrected finding:** BTC HIGH has ~2× more order-messaging than LOW (eps p50 822 vs 410), but execution intensity does NOT scale proportionally. HIGH/LOW trades/sec: mean=0.87×, p90=1.14×, p99=0.53×. The selected HIGH session has *less* extreme execution tail than LOW. Order-message burst ≠ trading burst ≠ price burst.
+> **Corrected finding:** BTC HIGH has ~2× more order-messaging than LOW (eps p50 822 vs 410), but execution intensity does NOT scale proportionally. HIGH/LOW trades/sec: mean=0.87×, p90=1.14×, p99=0.53×. The selected HIGH session has *less* extreme execution tail than LOW. Order-message burst ≠ trading burst ≠ price burst. Underlying features are causal/backward-looking; pressure percentile buckets used in this descriptive analysis are retrospective within-session stratifications.
 
 See Figure 01.
 
@@ -89,7 +89,7 @@ See Figure 03.
 
 ---
 
-## 4. Passive Response — BUY Pressure (mirror)
+## 4. Passive Response — BUY Pressure
 
 ### BTC LOW — BUY pressure
 
@@ -149,6 +149,62 @@ Tests absorption-candidate hypothesis on same-window data only.
 | BTC | HIGH | BUY | passive_neutral | 4 | 2.00 | 4.40 | 1.00 | 0.00 |
 | BTC | HIGH | BUY | passive_cancels | 201 | 6.00 | 15.00 | 6.00 | 1.07 |
 
+### 5.1 Cross-session absorption regularity
+
+For each of 12 symbol × session × aggressor combinations: passive_adds vs passive_cancels median ticks_moved_1s.
+
+| Symbol | Session | Aggressor | adds ticks p50 | cancels ticks p50 | comparison |
+|---|---|---|---|---|---|
+| ETH | HIGH | BUY | 1.50 | 2.00 | **lower** |
+| ETH | HIGH | SELL | 2.00 | 2.50 | **lower** |
+| ETH | LOW | BUY | 2.00 | 2.00 | **equal** |
+| ETH | LOW | SELL | 1.50 | 3.00 | **lower** |
+| ETH | MEDIAN | BUY | 2.00 | 2.00 | **equal** |
+| ETH | MEDIAN | SELL | 2.00 | 3.00 | **lower** |
+| BTC | HIGH | BUY | 4.00 | 6.00 | **lower** |
+| BTC | HIGH | SELL | 4.00 | 5.00 | **lower** |
+| BTC | LOW | BUY | 3.75 | 5.00 | **lower** |
+| BTC | LOW | SELL | 4.00 | 4.00 | **equal** |
+| BTC | MEDIAN | BUY | 2.00 | 5.00 | **lower** |
+| BTC | MEDIAN | SELL | 4.00 | 6.00 | **lower** |
+
+**Result: 9/12 lower (passive_adds < cancels), 3/12 equal, 0/12 higher.**
+0/12 combinations show passive_adds with higher price response than passive_cancels.
+Traceable from `CONDITIONAL_FLOW_SPLIT.csv`.
+
+### 5.2 Reprice flow by passive-response group (top-10% sell pressure, 1s)
+
+SELL aggressor: bid_reprice_away_qty_1s p50; ratio = passive_cancels / passive_adds (dimensionless).
+
+| Symbol | Session | Group | bid_reprice_away p50 | bid_reprice_toward p50 | ratio |
+|---|---|---|---|---|---|
+| BTC | LOW | passive_adds | 2.9311 | 1.2760 |  |
+| BTC | LOW | passive_cancels | 3.4600 | 2.8844 | 1.18× |
+| BTC | MEDIAN | passive_adds | 3.1327 | 1.4685 |  |
+| BTC | MEDIAN | passive_cancels | 5.3541 | 3.1412 | 1.71× |
+| BTC | HIGH | passive_adds | 1.5079 | 2.9750 |  |
+| BTC | HIGH | passive_cancels | 2.2234 | 1.5877 | 1.47× |
+| BTC | **median** | | | | **1.47×** |
+| ETH | LOW | passive_adds | 32.0610 | 34.4220 |  |
+| ETH | LOW | passive_cancels | 102.4250 | 41.8270 | 3.19× |
+| ETH | MEDIAN | passive_adds | 19.1320 | 5.0530 |  |
+| ETH | MEDIAN | passive_cancels | 37.6870 | 8.1040 | 1.97× |
+| ETH | HIGH | passive_adds | 94.6170 | 24.7460 |  |
+| ETH | HIGH | passive_cancels | 103.6285 | 22.1820 | 1.10× |
+| ETH | **median** | | | | **1.97×** |
+
+> **Per-combination ratio (cancels/adds, bid_reprice_away):** all 6 symbol × session SELL ratios > 1. Median per-combination ratio = 1.59×. Traceable in `CONDITIONAL_FLOW_SPLIT.csv`.
+
+### 5.3 Top-1% sell pressure: bid reprice away/toward ratio (BTC, 1s window)
+
+| Session | away qty p50 | toward qty p50 | away/toward ratio |
+|---|---|---|---|
+| LOW | 3.1078 | 1.2547 | 2.48 |
+| MEDIAN | 0.6487 | 0.7486 | 0.87 |
+| HIGH | 3.7738 | 3.4267 | 1.10 |
+
+Traceable in `REPRICE_SUMMARY.csv`.
+
 ---
 
 ## 6. Execution x Replenishment
@@ -165,19 +221,19 @@ Show raw exec_qty and refill_qty alongside ratio — ratio alone is not interpre
 | LOW | p50-90 | 214 | 0.0453 | 0.5477 | 10.64 | 299.9 |
 | LOW | p90-95 | 27 | 0.5291 | 14.0729 | 28.20 | 92.1 |
 | LOW | p95-99 | 21 | 0.9019 | 14.2288 | 15.32 | 60.7 |
-| LOW | top-1% | 5 | 1.8013 | 28.1378 | 19.18 | 22.5 |
+| LOW | top-1% | 6 | 2.1340 | 27.8354 | 16.26 | 22.2 |
 | MEDIAN | zero | 3148 | 0.0000 | 0.0000 | 0.00 | 0.0 |
 | MEDIAN | p0-50 | 224 | 0.0020 | 0.2052 | 100.10 | 3750.6 |
 | MEDIAN | p50-90 | 182 | 0.0350 | 0.2314 | 7.34 | 111.3 |
 | MEDIAN | p90-95 | 23 | 0.2954 | 0.9130 | 4.54 | 27.5 |
 | MEDIAN | p95-99 | 18 | 0.6407 | 3.3624 | 5.53 | 25.7 |
-| MEDIAN | top-1% | 4 | 1.3784 | 31.8251 | 23.81 | 47.0 |
+| MEDIAN | top-1% | 5 | 1.4176 | 8.8244 | 6.59 | 46.1 |
 | HIGH | zero | 2719 | 0.0000 | 0.0000 | 0.00 | 0.0 |
 | HIGH | p0-50 | 487 | 0.0038 | 0.0701 | 31.15 | 2964.0 |
 | HIGH | p50-90 | 305 | 0.0205 | 0.2391 | 12.13 | 251.0 |
 | HIGH | p90-95 | 44 | 0.0822 | 0.5674 | 7.06 | 274.0 |
 | HIGH | p95-99 | 36 | 0.2687 | 1.2493 | 3.55 | 174.1 |
-| HIGH | top-1% | 8 | 1.1420 | 3.2991 | 3.30 | 36.4 |
+| HIGH | top-1% | 9 | 1.1892 | 3.4019 | 3.50 | 36.1 |
 
 ### ETH — replenishment by execution-size bucket (1s window)
 
@@ -188,19 +244,19 @@ Show raw exec_qty and refill_qty alongside ratio — ratio alone is not interpre
 | LOW | p50-90 | 211 | 0.4720 | 2.2660 | 4.09 | 65.7 |
 | LOW | p90-95 | 26 | 4.3385 | 45.1835 | 8.63 | 89.1 |
 | LOW | p95-99 | 21 | 13.9200 | 34.6510 | 1.88 | 10.0 |
-| LOW | top-1% | 5 | 24.9200 | 66.2650 | 2.00 | 18.1 |
+| LOW | top-1% | 6 | 29.0640 | 152.1320 | 1.74 | 17.2 |
 | MEDIAN | zero | 3206 | 0.0000 | 0.0000 | 0.00 | 0.0 |
 | MEDIAN | p0-50 | 196 | 0.0400 | 2.4020 | 59.27 | 1629.5 |
 | MEDIAN | p50-90 | 158 | 0.4345 | 4.7530 | 8.25 | 124.0 |
 | MEDIAN | p90-95 | 20 | 2.9610 | 26.9610 | 9.32 | 188.0 |
 | MEDIAN | p95-99 | 16 | 10.9685 | 68.7505 | 7.47 | 41.3 |
-| MEDIAN | top-1% | 3 | 36.9280 | 196.0000 | 5.29 | 25.4 |
+| MEDIAN | top-1% | 4 | 37.0050 | 660.3520 | 17.87 | 33.3 |
 | HIGH | zero | 3252 | 0.0000 | 0.0000 | 0.00 | 0.0 |
 | HIGH | p0-50 | 169 | 0.0420 | 1.5450 | 106.35 | 1534.8 |
 | HIGH | p50-90 | 144 | 0.6325 | 3.5665 | 4.68 | 110.3 |
 | HIGH | p90-95 | 17 | 4.5290 | 30.0770 | 5.20 | 59.9 |
 | HIGH | p95-99 | 14 | 19.9010 | 173.7025 | 7.38 | 30.6 |
-| HIGH | top-1% | 3 | 80.4900 | 1090.2330 | 16.47 | 49.0 |
+| HIGH | top-1% | 4 | 93.2095 | 784.2455 | 9.92 | 44.9 |
 
 ---
 
@@ -235,22 +291,21 @@ Near-BBO depth (existing features from BBO replay):
 - Near-zero aggressive taker qty
 - High simultaneous bid/ask add AND cancel (high passive turnover both sides)
 - Little BBO movement
-- Represents HFT repricing cycles (~98% cancellation rate observed in Phase B)
+- Consistent with high-frequency repricing patterns (~98% cancellation rate observed in data; participant identity not observable)
 
 **B. Aggressive Depletion-Like State**
-- Top 10–1% sell (or buy) taker flow
-- bid_net_passive < 0 at p50 across all sessions (SELL pressure)
-- Significant same-window downward price movement (SELL pressure), confirmed upward for BUY pressure
+- Top 10-1% sell (or buy) taker flow
+- bid_net_passive < 0 at p50 across all sessions
+- Significant same-window downward (or upward) price movement
 - Consistent across LOW/MEDIAN/HIGH BTC sessions
-- BUY-pressure counterpart: the same qualitative relationship appears in most high-pressure BUY buckets (ask_net and mid_chg direction reversed), though not uniformly across every session/bucket — e.g. BTC MEDIAN top-1% BUY has ask_net_passive p50 = +0.41 (asks are adding, not cancelling) while mid_chg is still strongly positive
+- Ask side shows analogous pattern for BUY pressure in most high-pressure buckets, but not uniformly across all sessions
 
 ### CANDIDATE STATES — NOT YET ESTABLISHED
 
 **C. Passive Absorption-Like State**
 - *Hypothesis:* strong sell flow + bid_net_passive > 0 + low same-window price response
-- *Cross-session regularity from conditional split:* in 9 of 12 symbol × session × aggressor combinations, the passive_adds group shows lower median same-window ticks_moved than the passive_cancels group; in the remaining 3 they are equal; in no case do passive_adds produce higher median response. Replenishment ratio follows the same direction (higher in passive_adds group) in 9/12 cases.
-- *Why still CANDIDATE:* cross-session consistency is encouraging, but within-bucket sample sizes are small (n=3–15 in some cells) and the per-episode outcome (hold vs break) has not been observed. Episode-level resolution requires the BATTLE ontology freeze and a separate R4 pass.
-- *Next step:* conditional analysis on `bid_net_passive > 0` AND `replenishment_ratio > threshold` simultaneously vs price response; then episode cardinality check
+- *Current evidence:* within top-10% sell flow the passive_adds group has fewer anchors; conditional split is available but p50 ticks requires more conditioning to distinguish from noise
+- *Next step:* conditional analysis on `bid_net_passive > 0` AND `replenishment_ratio > threshold` simultaneously vs price response
 
 **D. Trading Burst**
 - *Hypothesis:* trades/sec in top percentile + |AFI| imbalance + BBO movement
@@ -264,6 +319,7 @@ The conditional split shows some signal difference (e.g. `passive_adds` vs `pass
 ## 9. Caveats and Limitations
 
 - All features strictly causal (backward-looking from anchor_ts)
+- Pressure percentile buckets used in this descriptive analysis are retrospective within-session stratifications (not causal in the predictive sense)
 - ms-batch semantics: same-ms events form unordered set
 - 120m context window not_ready for 60-min research sessions (by design)
 - acceleration features: NaN in ~83% of 1s rows (valid only when prior window has flow)
@@ -272,4 +328,4 @@ The conditional split shows some signal difference (e.g. `passive_adds` vs `pass
 
 ---
 
-*FEATURE_VERSION=r2.1  |  BOOK_SEMANTICS_VERSION=ms-batch-v1  |  R3-QA1 revised*
+*FEATURE_VERSION=r2.2  |  BOOK_SEMANTICS_VERSION=ms-batch-v1  |  R3-QA1 revised*

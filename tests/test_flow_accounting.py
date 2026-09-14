@@ -69,7 +69,57 @@ def test_place_then_cancel_conserves():
     assert f.iloc[0]["bid_net_passive_5s"] == 0.0
 
 
+def _updated_reprice(ts, direction, old_qty, new_qty, old_price, new_price):
+    """OrderUpdated with price change (and optionally qty change)."""
+    return {"timestamp": ts, "event": {"OrderUpdated": {
+        "oldOrder": {"uid": f"u{ts}", "direction": direction, "quantity": str(old_qty), "limitPrice": str(old_price)},
+        "newOrder": {"uid": f"u{ts}", "direction": direction, "quantity": str(new_qty), "limitPrice": str(new_price),
+                     "orderType": "Limit"}}}}
+
+
 def test_passive_windows_causal():
     a = pf.build_passive_atoms([_placed(5000, "Buy", 9.0, 100.0)])
     f = pf.windowed_passive_flow(a, np.array([4000]), {"1s": 1000})
     assert f.iloc[0]["bid_add_qty_1s"] == 0.0
+
+
+# ── r2.2 regression: price-changing updates must NOT produce passive size atoms ──
+
+def test_price_only_update_no_passive_atom():
+    """Price-only update (qty unchanged) → 0 passive atoms. Only REPRICE_OUT/IN."""
+    raw = [_placed(1000, "Buy", 5.0, 100.0),
+           _updated_reprice(2000, "Buy", 5.0, 5.0, 100.0, 99.0)]
+    atoms = pf.build_passive_atoms(raw)
+    # Only the placed event generates an atom; price-change update is excluded
+    assert len(atoms) == 1
+    assert atoms.iloc[0]["action"] == "add"
+
+
+def test_price_and_qty_increase_no_size_atom():
+    """Price+qty change → 0 passive size atoms. REPRICE_OUT/IN captures everything."""
+    raw = [_placed(1000, "Buy", 10.0, 100.0),
+           _updated_reprice(2000, "Buy", 10.0, 12.0, 100.0, 99.0)]
+    atoms = pf.build_passive_atoms(raw)
+    assert len(atoms) == 1           # only the placed event
+    assert atoms.iloc[0]["action"] == "add"
+    assert abs(float(atoms.iloc[0]["qty"]) - 10.0) < 1e-9
+
+
+def test_price_and_qty_decrease_no_size_atom():
+    """Price+qty decrease → 0 passive size atoms."""
+    raw = [_placed(1000, "Sell", 10.0, 101.0),
+           _updated_reprice(2000, "Sell", 10.0, 7.0, 101.0, 102.0)]
+    atoms = pf.build_passive_atoms(raw)
+    assert len(atoms) == 1
+    assert atoms.iloc[0]["action"] == "add"
+
+
+def test_same_price_qty_increase_produces_size_add():
+    """Same price, qty increase → SIZE_ADD (no price change, still valid)."""
+    raw = [_placed(1000, "Buy", 5.0, 100.0),
+           _updated(2000, "Buy", 5.0, 8.0, 100.0)]
+    atoms = pf.build_passive_atoms(raw)
+    assert len(atoms) == 2
+    size_add = atoms[atoms.action == "add"]
+    assert len(size_add) == 2
+    assert abs(float(size_add.iloc[1]["qty"]) - 3.0) < 1e-9  # delta = 3

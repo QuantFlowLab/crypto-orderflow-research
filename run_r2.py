@@ -216,6 +216,12 @@ def _stream_passive_atoms(orders_path: Path) -> pd.DataFrame:
                                   "action": "cancel", "qty": qty, "price": _f(o.get("limitPrice"))})
             elif et == "OrderUpdated":
                 nw = body.get("newOrder", {}); old = body.get("oldOrder", {})
+                new_price = _f(nw.get("limitPrice"))
+                old_price = _f(old.get("limitPrice"))
+                # Price-changing updates are exclusively REPRICE_OUT/IN; skip here.
+                if (new_price is not None and old_price is not None
+                        and abs(new_price - old_price) >= 1e-9):
+                    continue
                 delta = (_f(nw.get("quantity")) or 0) - (_f(old.get("quantity")) or 0)
                 if abs(delta) < 1e-12: continue
                 bs = "bid" if nw.get("direction") == "Buy" else "ask" if nw.get("direction") == "Sell" else None

@@ -1,0 +1,7 @@
+symbol,label,top1_sell_bid_away_p50,top1_sell_bid_toward_p50,top1_sell_bid_away_toward_ratio,top1_buy_ask_away_p50,top1_buy_ask_toward_p50,top1_buy_ask_away_toward_ratio
+BTC,LOW,3.1078,1.2547,2.4769,2.8892,2.9528,0.9785
+BTC,MEDIAN,0.6487,0.7486,0.8666,2.5656,0.5656,4.5361
+BTC,HIGH,3.7738,3.4267,1.1013,3.4403,3.983,0.8637
+ETH,LOW,67.5535,39.804,1.6972,39.355,52.2815,0.7528
+ETH,MEDIAN,25.397,10.902,2.3296,38.666,22.6115,1.71
+ETH,HIGH,61.965,20.1375,3.0771,99.617,60.458,1.6477

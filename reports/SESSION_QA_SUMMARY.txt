@@ -14,7 +14,9 @@ KRAKEN-OF-1-R1   SIX-SESSION HARD QA   SUMMARY
 ALL 6 SESSIONS PASS
 
   DATA / REPLAY TRUTH     ✓  ESTABLISHED
-  DESCRIPTIVE MODULES     ✓  FROZEN (60/60 tests)
+  SIX-SESSION HARD QA     ✓  6/6 PASS
+  CURRENT TEST SUITE      ✓  82/82 PASS
+  FEATURE_VERSION         ✓  r2.2
 
   Next: run feature pipeline on real sessions
     market_regime → aggressive_flow → passive_flow

@@ -1,6 +1,6 @@
 """run_analysis.py — KRAKEN-OF-1-R3: Descriptive Microstructure Analysis.
 
-Frozen inputs: FEATURE_VERSION=r2.1  BOOK_SEMANTICS_VERSION=ms-batch-v1
+Frozen inputs: FEATURE_VERSION=r2.2  BOOK_SEMANTICS_VERSION=ms-batch-v1
 HARD RULE: no future returns, MFE/MAE, ML or PnL. Causal features only.
 
 Output:
@@ -32,7 +32,7 @@ EPFIGS  = FIGS / "episodes"
 for d in (REPORTS, FIGS, EPFIGS):
     d.mkdir(parents=True, exist_ok=True)
 
-FEATURE_VERSION        = "r2.1"
+FEATURE_VERSION        = "r2.2"
 BOOK_SEMANTICS_VERSION = "ms-batch-v1"
 SYMBOLS  = ["PF_XBTUSD", "PF_ETHUSD"]
 LABELS   = ["LOW", "MEDIAN", "HIGH"]
@@ -59,10 +59,10 @@ def load_all() -> dict[tuple[str, str], pd.DataFrame]:
         for lbl in LABELS:
             p = FEAT / f"{sym}_{lbl}_features.parquet"
             df = pd.read_parquet(p)
-            # session-relative pressure percentiles (causal, within-session)
             for side in ("buy", "sell"):
                 col = f"{side}_taker_qty_1s"
                 if col in df:
+                    # retrospective within-session descriptive stratification
                     df[f"{side}_pressure_pct"] = df[col].rank(pct=True) * 100
             dfs[(sym, lbl)] = df
     return dfs
@@ -635,8 +635,7 @@ def generate_report(dist_df: pd.DataFrame, jst_df: pd.DataFrame,
         "",
         f"**BTC finding:** order-event rate (events/sec) ratio HIGH/LOW = {eps_ratio:.1f}×, "
         f"but execution rate (trades/sec) ratio HIGH/LOW = {tps_ratio:.1f}×. "
-        "High-activity sessions amplify order messaging more than actual trades — "
-        "consistent with HFT repricing bursts rather than pure execution surges.",
+        "High-activity sessions amplify order messaging significantly more than actual trades.",
         "",
         "See Figure 01.",
         "", "---", "",
@@ -703,7 +702,7 @@ def generate_report(dist_df: pd.DataFrame, jst_df: pd.DataFrame,
         "(only counted when exec > 0; exec_qty deduplicated per exec_ts).",
         "",
         "**Extreme ratios (max ~370k) are physically real**: a tiny execution (0.001 ETH) "
-        "can trigger hundreds of new limit orders at the same level within 1s from HFT market makers. "
+        "can trigger hundreds of new limit orders at the same level within 1s. "
         "The ratio is not capped. Visualize with log1p.",
         "",
     ]
@@ -756,7 +755,7 @@ def generate_report(dist_df: pd.DataFrame, jst_df: pd.DataFrame,
         "- Near-zero aggressive qty",
         "- Large add/cancel activity (high passive add AND cancel)",
         "- Little price movement",
-        "- Consistent with HFT repricing cycles (post→cancel, 98% cancellation rate in Phase B)",
+        "- Consistent with high-frequency repricing patterns (post→cancel; ~98% cancellation rate in data)",
         "",
         "### B. Aggressive Depletion-Like State",
         "- Strong sell (or buy) taker flow",
@@ -764,11 +763,11 @@ def generate_report(dist_df: pd.DataFrame, jst_df: pd.DataFrame,
         "- High same-window downward (or upward) price response",
         "- Found in top-1% sell pressure with bid_net_passive < 0",
         "",
-        "### C. Passive Absorption-Like State",
-        "- Strong sell (or buy) taker flow",
+        "### C. Passive Absorption-Like State (CANDIDATE — NOT YET ESTABLISHED)",
+        "- *Hypothesis:* strong sell (or buy) taker flow + bid/ask net passive positive + lower price response",
         "- Bid (or ask) net passive positive (adds dominate cancels)",
         "- Lower same-window price response",
-        "- High replenishment ratio at executed levels",
+        "- *Requires further conditioning before treating as established state*",
         "",
         "### D. Trading Burst",
         "- High execution intensity (trades/sec p99)",

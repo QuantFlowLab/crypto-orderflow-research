@@ -1,8 +1,8 @@
 {
-  "version_tag": "v0.2-orderflow",
+  "version_tag": "v0.2.1-orderflow",
   "feature_version": "r2.2",
   "book_semantics_version": "ms-batch-v1",
-  "build_date": "2026-09-14",
+  "build_date": "2026-09-15",
   "source": "internal research workspace (not redistributed)",
   "included_sessions": [
     "BTC LOW",
@@ -24,9 +24,11 @@
     "JOINT_STATE_TABLES_v2.csv",
     "CONDITIONAL_FLOW_SPLIT.csv",
     "NEAR_MARKET_LIQUIDITY.csv",
+    "REPLENISHMENT_BY_EXEC_SIZE.csv",
+    "REPRICE_SUMMARY.csv",
     "R3_PROVENANCE.csv",
-    "FEATURE_COLUMNS_r2.1.txt"
+    "FEATURE_COLUMNS_r2.2.txt"
   ],
   "figures_included": 11,
-  "tests_included": 12
+  "tests_included": 82
 }

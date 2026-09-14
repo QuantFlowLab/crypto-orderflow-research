@@ -1,9 +1,9 @@
 # Order Flow Analysis
 
-## Feature Dataset (FEATURE_VERSION=r2.1)
+## Feature Dataset (FEATURE_VERSION=r2.2)
 
 For each of six sessions (LOW/MEDIAN/HIGH × BTC/ETH), a 1-second anchor grid
-over the 60-minute research window produces 3,600 rows × 475 causal features.
+over the 60-minute research window produces 3,600 rows × 615 causal features.
 
 All features are **strictly backward-looking**: a feature at anchor `t` uses only
 events in `(t−W, t]` for its window `W`. No future prices, MFE, MAE, or labels.
@@ -51,9 +51,10 @@ For BUY pressure: qualitatively similar in most sessions (ask_net and price dire
 though not uniform across every bucket.
 
 **Conditional split:** within top-10% sell flow, anchors where `bid_net_passive > 0`
-(passive bids adding) show ~30% lower same-window ticks_moved than anchors where
-`bid_net_passive < 0`. This cross-session regularity (9/12 cases) is the basis for the
-absorption-candidate state.
+(passive bids adding) show lower same-window median `ticks_moved_1s` in 9/12
+symbol × session × aggressor combinations (3/12 equal, 0/12 higher). This cross-session
+regularity is the basis for the absorption-candidate state.
+*(Exact count reproducible from `CONDITIONAL_FLOW_SPLIT.csv` via `run_r3_qa1.py`.)*
 
 ## Observed Market-State Families
 

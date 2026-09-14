@@ -100,7 +100,7 @@ def section_inventory(btc: pd.DataFrame):
     _log("\n" + "="*72)
     _log("SECTION 1: FEATURE INVENTORY")
     _log("="*72)
-    col_path = REPORTS / "FEATURE_COLUMNS_r2.0.txt"
+    col_path = REPORTS / "FEATURE_COLUMNS_r2.2.txt"
     col_path.write_text("\n".join(btc.columns.tolist()), encoding="utf-8")
     _log(f"  {btc.shape[1]} columns x {btc.shape[0]} rows")
     _log(f"  feature_version: {btc['feature_version'].iloc[0]}")
@@ -427,8 +427,8 @@ def section_verdict():
     if not violations:
         _log("  FEATURE_SEMANTICS: PASS")
         _log("  No violations found. Feature definitions are semantically correct.")
-        _log("  FEATURE_VERSION r2.1 FROZEN.")
-        _log("  Changes from r2.0: ticks_moved unsigned; accel NaN at zero prior; price_response_per_qty NaN at zero flow.")
+        _log("  FEATURE_VERSION r2.2 FROZEN.")
+        _log("  r2.2 adds: REPRICE_OUT/IN atoms with away/toward direction (~90% of OrderUpdated events).")
     else:
         _log(f"  FEATURE_SEMANTICS: FAIL ({len(violations)} violation(s))")
         for i, v in enumerate(violations, 1):
