@@ -1,0 +1,32 @@
+{
+  "version_tag": "v0.2-orderflow",
+  "feature_version": "r2.2",
+  "book_semantics_version": "ms-batch-v1",
+  "build_date": "2026-09-14",
+  "source": "internal research workspace (not redistributed)",
+  "included_sessions": [
+    "BTC LOW",
+    "BTC MEDIAN",
+    "BTC HIGH",
+    "ETH LOW",
+    "ETH MEDIAN",
+    "ETH HIGH"
+  ],
+  "excluded": [
+    "raw JSONL (3-18 GB each)",
+    "large parquets (5-7 MB each)",
+    "download logs"
+  ],
+  "reports_included": [
+    "ORDER_FLOW_REPORT.md",
+    "SESSION_QA_SUMMARY.txt",
+    "FEATURE_QA_REPORT.csv",
+    "JOINT_STATE_TABLES_v2.csv",
+    "CONDITIONAL_FLOW_SPLIT.csv",
+    "NEAR_MARKET_LIQUIDITY.csv",
+    "R3_PROVENANCE.csv",
+    "FEATURE_COLUMNS_r2.1.txt"
+  ],
+  "figures_included": 11,
+  "tests_included": 12
+}
