@@ -15,11 +15,8 @@ ALL 6 SESSIONS PASS
 
   DATA / REPLAY TRUTH     ✓  ESTABLISHED
   SIX-SESSION HARD QA     ✓  6/6 PASS
-  CURRENT TEST SUITE      ✓  82/82 PASS
+  CURRENT TEST SUITE      ✓  85/85 PASS
   FEATURE_VERSION         ✓  r2.2
 
-  Next: run feature pipeline on real sessions
-    market_regime → aggressive_flow → passive_flow
-    → price_response → wall_state → replenishment
-  Then: BATTLE ontology design
+  R3 descriptive analysis complete. Next: BATTLE-1 ontology freeze.
 ========================================================================

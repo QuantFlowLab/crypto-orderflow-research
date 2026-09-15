@@ -1,8 +1,9 @@
-"""session_select.py — R1 Part 2: механический выбор research-сессий.
+"""session_select.py — R1 Part 2: mechanical selection of research sessions.
 
-Ранжирует кандидатные 60-мин окна ТОЛЬКО по BTC order_event_count/sec (никаких returns/vol/
-future). Зондирует короткий срез в начале каждого окна, оценивает eps, выбирает LOW(~15pct)/
-MEDIAN(~50pct)/HIGH(~92pct). Пишет SESSION_MANIFEST.csv (все кандидаты + логика выбора, reproducible).
+Ranks candidate 60-min windows ONLY by BTC order_event_count/sec (no returns/vol/
+future). Probes a short slice at the start of each window, estimates eps, selects LOW(~15pct)/
+MEDIAN(~50pct)/HIGH(~92pct). Writes SESSION_CANDIDATES.csv (all candidates + selection logic);
+SESSION_MANIFEST.csv is the separate frozen 3-row artifact with the final selected sessions.
 
 Usage: python session_select.py
 """
@@ -37,9 +38,9 @@ def probe_eps(symbol: str, start_iso: str) -> tuple[int, int]:
     path = f"/api/history/v3/market/{symbol}/orders"
     cont = None; total = 0; pages = 0
     while True:
-        params = {"since": since_ms, "before": before_ms, "count": 1000}
+        params = {"since": since_ms, "before": before_ms, "count": 1000, "sort": "desc"}
         if cont:
-            params["continuationToken"] = cont
+            params["continuation_token"] = cont  # request param (snake_case per Kraken API docs)
         r = requests.get(BASE + path, params=params, timeout=30)
         j = r.json()
         elems = j.get("elements", [])
@@ -84,13 +85,13 @@ def main():
                           "research_end": re.strftime("%Y-%m-%dT%H:%M:%SZ")})
     df = pd.concat([df, df.apply(windows, axis=1)], axis=1)
 
-    df.to_csv(REPORTS / "SESSION_MANIFEST.csv", index=False)
+    df.to_csv(REPORTS / "SESSION_CANDIDATES.csv", index=False)
     meta = {"rank_symbol": RANK_SYMBOL, "selection_variable": "order_event_count/sec (BTC)",
             "probe_sec": PROBE_SEC, "n_candidates": len(df), "percentile_targets": PCTL,
             "selected": {label: df.loc[idx, ["day", "time", "eps", "pctl"]].to_dict()
                          for label, idx in sel.items()},
-            "note": "Mechanical selection by activity only. No returns/volatility/future used."}
-    (REPORTS / "SESSION_MANIFEST_meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+            "note": "Mechanical selection by activity only. No returns/volatility/future used. SESSION_MANIFEST.csv contains only the frozen selected rows."}
+    (REPORTS / "SESSION_CANDIDATES_meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     print("\nSELECTED:")
     print(df[df.selected != ""][["selected", "research_start", "eps", "pctl", "warmup_start", "research_end"]].to_string(index=False))
 

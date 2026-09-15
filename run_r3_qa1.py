@@ -294,6 +294,28 @@ def compute_reprice_summary(dfs: dict) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+# ── 5c. Replenishment global summary ──────────────────────────────────────────
+
+def compute_replenishment_global_summary(dfs: dict) -> pd.DataFrame:
+    """Per-session overall replenishment_ratio_1s stats (exec > 0 anchors only)."""
+    rows = []
+    for sym in SYMBOLS:
+        for lbl in LABELS:
+            df = dfs[(sym, lbl)]
+            if "replenishment_ratio_1s" not in df or "total_exec_qty_1s" not in df:
+                continue
+            v = df[df["total_exec_qty_1s"] > 1e-9]["replenishment_ratio_1s"].dropna()
+            if len(v) < 3:
+                continue
+            rows.append({"symbol": SYM_NICE[sym], "label": lbl,
+                         "n_exec_anchors": len(v),
+                         "ratio_p50":  round(float(v.median()), 2),
+                         "ratio_p90":  round(float(v.quantile(.9)), 1),
+                         "ratio_p99":  round(float(v.quantile(.99)), 0),
+                         "ratio_max":  round(float(v.max()), 0)})
+    return pd.DataFrame(rows)
+
+
 # ── 6. Generate updated ORDER_FLOW_REPORT.md ──────────────────────────────────
 
 def generate_updated_report(dfs, tps_tbl, jst_v2, cond_split, repl_exec, near_liq,
@@ -701,6 +723,12 @@ def main():
         ratios = btc_sell_rs["top1_sell_bid_away_toward_ratio"].dropna()
         if len(ratios):
             print(f"    BTC top-1% sell away/toward ratio: {ratios.min():.2f}–{ratios.max():.2f}", flush=True)
+
+    print("  Replenishment global summary ...", flush=True)
+    repl_global = compute_replenishment_global_summary(dfs)
+    repl_global.to_csv(REPORTS / "REPLENISHMENT_GLOBAL_SUMMARY.csv", index=False)
+    if len(repl_global):
+        print(f"    ratio_max across sessions: {repl_global['ratio_max'].max():.0f}", flush=True)
 
     print("  Near-market liquidity ...", flush=True)
     nml = compute_near_market_liquidity(dfs)

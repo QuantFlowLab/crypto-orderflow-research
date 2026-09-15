@@ -1,9 +1,10 @@
 {
-  "version_tag": "v0.2.1-orderflow",
+  "baseline_release_tag": "v0.2.2-orderflow",
+  "repository_state": "release candidate v0.2.2-orderflow",
   "feature_version": "r2.2",
   "book_semantics_version": "ms-batch-v1",
   "build_date": "2026-09-15",
-  "source": "internal research workspace (not redistributed)",
+  "source": "Kraken Futures public historical REST API (unauthenticated); raw data not redistributed",
   "included_sessions": [
     "BTC LOW",
     "BTC MEDIAN",
@@ -20,15 +21,18 @@
   "reports_included": [
     "ORDER_FLOW_REPORT.md",
     "SESSION_QA_SUMMARY.txt",
+    "SESSION_MANIFEST.csv",
+    "SESSION_MANIFEST_meta.json",
     "FEATURE_QA_REPORT.csv",
     "JOINT_STATE_TABLES_v2.csv",
     "CONDITIONAL_FLOW_SPLIT.csv",
     "NEAR_MARKET_LIQUIDITY.csv",
     "REPLENISHMENT_BY_EXEC_SIZE.csv",
+    "REPLENISHMENT_GLOBAL_SUMMARY.csv",
     "REPRICE_SUMMARY.csv",
     "R3_PROVENANCE.csv",
     "FEATURE_COLUMNS_r2.2.txt"
   ],
   "figures_included": 11,
-  "tests_included": 82
+  "tests_included": 85
 }

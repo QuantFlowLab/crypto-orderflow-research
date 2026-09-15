@@ -368,13 +368,10 @@ def _print_summary(df: pd.DataFrame) -> None:
             "",
             "  DATA / REPLAY TRUTH     ✓  ESTABLISHED",
             "  SIX-SESSION HARD QA     \u2713  6/6 PASS",
-            "  CURRENT TEST SUITE      \u2713  82/82 PASS",
+            "  CURRENT TEST SUITE      \u2713  85/85 PASS",
             "  FEATURE_VERSION         \u2713  r2.2",
             "",
-            "  Next: run feature pipeline on real sessions",
-            "    market_regime → aggressive_flow → passive_flow",
-            "    → price_response → wall_state → replenishment",
-            "  Then: BATTLE ontology design",
+            "  R3 descriptive analysis complete. Next: BATTLE-1 ontology freeze.",
         ]
     else:
         n = int((df["final_verdict"] != "PASS").sum())

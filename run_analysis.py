@@ -69,7 +69,7 @@ def load_all() -> dict[tuple[str, str], pd.DataFrame]:
 
 def parquet_hash(sym, lbl) -> str:
     p = FEAT / f"{sym}_{lbl}_features.parquet"
-    return hashlib.sha256(p.read_bytes()).hexdigest()[:12]
+    return hashlib.sha256(p.read_bytes()).hexdigest()[:16]
 
 def freeze_provenance(dfs):
     """Write R3 provenance manifest."""
@@ -79,7 +79,7 @@ def freeze_provenance(dfs):
             rows.append({"symbol": sym, "label": lbl,
                           "feature_version": FEATURE_VERSION,
                           "book_semantics": BOOK_SEMANTICS_VERSION,
-                          "parquet_sha256_12": parquet_hash(sym, lbl),
+                          "parquet_sha256_16": parquet_hash(sym, lbl),
                           "n_rows": len(dfs[(sym, lbl)])})
     pd.DataFrame(rows).to_csv(REPORTS / "R3_PROVENANCE.csv", index=False)
     print("  Provenance saved: R3_PROVENANCE.csv", flush=True)
@@ -843,7 +843,7 @@ def main():
     fig_aggressive_flow(dfs)
     fig_passive_response(dfs)
     fig_pressure_price_response(dfs)
-    fig_pressure_bid_price(dfs)
+    # fig_pressure_bid_price excluded from default run (figure 05 not in published figures/)
     fig_execution_replenishment(dfs)
     fig_liquidity_concentration(dfs)
     fig_btc_vs_eth(dfs)
@@ -857,7 +857,7 @@ def main():
 
     print("\nAll outputs written.", flush=True)
     print(f"  reports/  ORDER_FLOW_REPORT.md  DESCRIPTIVE_DISTRIBUTIONS.csv  JOINT_STATE_TABLES.csv", flush=True)
-    print(f"  figures/  01..08 + episodes/", flush=True)
+    print(f"  figures/  01..04, 06..08 + episodes/", flush=True)
 
 
 if __name__ == "__main__":

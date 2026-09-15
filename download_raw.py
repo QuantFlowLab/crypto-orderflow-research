@@ -81,9 +81,9 @@ def stream(sym: str, stream_name: str, since_ms: int, before_ms: int, suffix: st
     t0 = time.time()
     with open(part_file, "w", encoding="utf-8") as f:
         while True:
-            params: dict = {"since": since_ms, "before": before_ms, "count": 1000}
+            params: dict = {"since": since_ms, "before": before_ms, "count": 1000, "sort": "desc"}
             if cont:
-                params["continuationToken"] = cont
+                params["continuation_token"] = cont  # request param (snake_case per Kraken API docs)
             j = _get_with_retry(BASE + api_path, params)
             elems = j.get("elements", [])
             for e in elems:

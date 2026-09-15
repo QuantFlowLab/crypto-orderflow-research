@@ -1,0 +1,13 @@
+{
+  "rank_symbol": "PF_XBTUSD",
+  "selection_variable": "order_event_count/sec (BTC only)",
+  "probe_sec": 60,
+  "selection_method": "Mechanical: closest-to-target-percentile among 20 candidate windows (5 days × 4 UTC times). No returns, volatility, or future labels used.",
+  "percentile_targets": {"LOW": 15, "MEDIAN": 50, "HIGH": 92},
+  "frozen_selection": {
+    "LOW":    {"research_start": "2026-09-06T14:00:00Z", "warmup_start": "2026-09-06T13:00:00Z", "research_end": "2026-09-06T15:00:00Z", "probe_eps": 335.0},
+    "MEDIAN": {"research_start": "2026-09-09T20:00:00Z", "warmup_start": "2026-09-09T19:00:00Z", "research_end": "2026-09-09T21:00:00Z", "probe_eps": 634.0},
+    "HIGH":   {"research_start": "2026-09-10T14:00:00Z", "warmup_start": "2026-09-10T13:00:00Z", "research_end": "2026-09-10T15:00:00Z", "probe_eps": 1124.0}
+  },
+  "note": "SESSION_MANIFEST.csv contains only the three frozen selected rows. Full candidate ranking is not redistributed."
+}

@@ -551,6 +551,7 @@ def main():
                       flush=True)
                 continue
             t_wall = time.time()
+            tracemalloc.start()
             features, wall_s = build_session_features(sym, label, since_ms, before_ms)
             _, peak_bytes = tracemalloc.get_traced_memory()
             tracemalloc.stop()
@@ -572,10 +573,14 @@ def main():
             })
             all_features.append(features)
 
-    pd.DataFrame(perf_rows).to_csv(OUT / "performance_log.csv", index=False)
-    print("\nPerformance summary:")
-    print(pd.DataFrame(perf_rows)[["symbol", "label", "n_rows", "n_cols", "wall_s",
-                                    "peak_ram_mb", "parquet_mb"]].to_string(index=False))
+    perf_df = pd.DataFrame(perf_rows)
+    perf_df.to_csv(OUT / "performance_log.csv", index=False)
+    if perf_df.empty:
+        print("\nAll parquets already exist; nothing rebuilt.", flush=True)
+    else:
+        print("\nPerformance summary:")
+        print(perf_df[["symbol", "label", "n_rows", "n_cols", "wall_s",
+                        "peak_ram_mb", "parquet_mb"]].to_string(index=False))
     print(f"\nAll features saved to {OUT}/", flush=True)
 
 

@@ -9,3 +9,6 @@ requests>=2.28
 # Analysis & Figures
 matplotlib>=3.7
 seaborn>=0.12
+
+# Testing
+pytest>=8.0

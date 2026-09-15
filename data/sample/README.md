@@ -13,9 +13,9 @@ example_orders.jsonl      — 17 synthetic order events (10 placed, 4 repriced, 
 example_executions.jsonl  — 3 synthetic execution events
 ```
 
-These files follow the exact schema of the Kraken Futures API v3 response,
-enabling the pipeline to be demonstrated and tested without downloading
-gigabytes of real data.
+These files use a minimal synthetic subset of the Kraken Futures API v3 event schema
+(the fields consumed by this research pipeline), enabling the pipeline to be demonstrated
+and tested without downloading gigabytes of real data.
 
 ## Download Real Data
 

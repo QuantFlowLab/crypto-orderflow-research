@@ -29,8 +29,8 @@ Key QA counters (accumulated during replay):
 **Finding during QA1:** the book was systematically crossed (ETH: 206,773 crossed batches,
 spread = −24 ticks) due to a specific event-ordering failure.
 
-**Root cause:** the API delivers same-ms events in file order. For many HFT market-maker
-orders, an `OrderCancelled` event arrived before its `OrderPlaced` in the same millisecond.
+**Root cause:** the API delivers same-ms events in file order. For many resting limit orders,
+an `OrderCancelled` event arrived before its `OrderPlaced` in the same millisecond.
 Naive replay processed the cancel (no-op, UID not yet known) then the place (added to book,
 never removed) — creating ghost orders that accumulated and crossed the book.
 

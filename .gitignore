@@ -1,8 +1,8 @@
-# Large data files — download locally via download_raw.py
+# Large datasets
+*.parquet
 data/raw/*.jsonl
 data/raw/*.jsonl.part
 data/raw/*.manifest
-data/derived/features/*.parquet
 data/session_*/
 
 # Run logs
@@ -13,8 +13,10 @@ data/*_log.txt
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
 .venv/
-.env/
+.env
+.env.*
 *.egg-info/
 dist/
 build/
